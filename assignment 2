@@ -1,0 +1,251 @@
+Assignment Part 1:
+.........................................................................
+
+Below is a database collection for the entities:
+// Patients Collection
+{
+  "_id": ObjectId,
+  "first_name": "string",
+  "last_name": "string",
+  "date_of_birth": "ISODate",
+  "gender": "string",
+  "address": "string",
+  "phone_number": "string",
+  "admissions": [
+    {
+      "admission_id": ObjectId,
+      "admission_date": "ISODate",
+      "discharge_date": "ISODate",
+      "room": {
+        "room_id": ObjectId,
+        "room_number": "number",
+        "room_type": "string",
+        "room_status": "string"
+      }
+    }
+  ],
+  "tests": [
+    {
+      "test_id": ObjectId,
+      "test_name": "string",
+      "test_date": "ISODate",
+      "test_result": "string"
+    }
+  ],
+  "prescriptions": [
+    {
+      "prescription_id": ObjectId,
+      "prescription_date": "ISODate",
+      "medication": "string",
+      "dosage": "string",
+      "doctor": {
+        "doctor_id": ObjectId,
+        "doctor_name": "string",
+        "specialty": "string",
+        "phone_number": "string"
+      }
+    }
+  ]
+}
+// Doctors Collection
+{
+  "_id": ObjectId,
+  "doctor_name": "string",
+  "specialty": "string",
+  "phone_number": "string",
+}
+
+// Create a connection to MongoDB
+const MongoClient = require('mongodb').MongoClient;
+const url = 'mongodb://localhost:27017/hospital';
+// Connect to the database
+MongoClient.connect(url, function(err, client) {
+  if (err) throw err;
+  console.log('Connected to the database!');
+
+// Get the patients collection
+  const db = client.db('hospital');
+  const patients = db.collection('patients');
+ 
+ // Insert a new patient document
+  patients.insertOne({
+    "patient_id": "12345",
+    "name": "Pabsoe",
+    "date_of_birth": "1980-01-01",
+    "contact_information": {
+        "email": "pasoe@email.com",
+        "phone": "+44-123-4500067"
+    },
+    "medical_history": [
+        {
+            "diagnosis": "High blood pressure",
+            "date": "2022-02-01",
+            "doctor_id": "6789",
+            "medication": "Lisinopril",
+            "start_date": "2022-02-01",
+            "end_date": "2022-03-01"
+        },
+        {
+            "diagnosis": "Diabetes",
+            "date": "2021-01-01",
+            "doctor_id": "5678",
+            "medication": "Metformin",
+            "start_date": "2021-01-01",
+            "end_date": "2022-01-01"
+        }
+    ],
+    "examinations": [
+        {
+            "examination_id": "3456",
+            "type": "Blood test",
+            "date_time": "2022-02-15T10:00:00Z",
+            "doctor_id": "6789",
+            "results": "Normal"
+        }
+    ]
+  }, function(err, result) {
+    if (err) throw err;
+    console.log('Patient document inserted!');
+    client.close();
+  });
+});
+
+
+Assignment Part 2:
+.........................................................................
+
+Find queries:
+
+Task 1 # Give the name of the places whose category is “accommodation”.
+Query: db.paris.find({category: "accommodation"}, {name: 1, _id: 0})
+
+Task 2 # Give the name and phone number of places with a phone number entered ($exists, $ne);
+Query: db.paris.find({"contact.phone": {$exists: true,$ne: null}},{name: 1,"contact.phone": 1,_id: 0})
+
+Task 3 # Name and contacts of places with” website” and” Foursquare” provided;
+Query: 
+db.paris.find(
+	{
+	"contact.website": { $exists: true },
+	"contact.Foursquare": { $exists: true }
+	},
+	{
+	"name": 1,
+	"contact": 1,
+	"_id": 0
+	}
+)
+
+Task 4 # Name of places whose name contains the word “hotel” (pay attention to case);
+Query:
+db.paris.find
+({
+name: {$regex: /hotel/, $options: 'i'
+}
+}, {name: 1, _id: 0
+}
+)
+
+Task 5 # Name and services of places offering 5 services;
+Query:
+db.paris.find
+(
+{
+services: {$size: 5}
+}, 
+{name: 1, services: 1, _id: 0}
+)
+
+Task 6 # Categories of places with at least a rating (reviews.rating) of 4 or more;
+Query:
+db.paris.distinct("category",
+{
+"reviews.rating":{$gte: 4}
+}, 
+{
+category: 1, _id:0
+}
+)
+
+Task 7 # GPS coordinates of places whose address contains “rue de rome”;
+Query:
+db.paris.find
+(
+{ 
+"location.address": /rue de rome/i 
+}, 
+{
+"location": 1, _id: 0 
+}
+)
+
+Distinct queries:
+
+Task 8 # Distinct list of categories. 
+Query:
+db.paris.distinct("category")
+
+Task 9 # Distinct list of services. 
+Query:
+db.paris.distinct("services")
+
+Aggregate queries:
+
+Task 10 # For each ”poi” category place name, give the number of reviews whose source (reviews.source) is 
+“Facebook”. Sort in descending order; 
+Query:
+db.paris.aggregate([
+  {
+    $match: { "category": "poi" }
+  },
+  {
+    $unwind: "$reviews"
+  },
+  {
+    $match: { "reviews.source": "Facebook" }
+  },
+  {
+    $group: {
+      _id: {
+        name: "$name",
+        category: "$category"
+      },
+      count: { $sum: 1 }
+    }
+  },
+  {
+    $sort: { count: -1 }
+  }
+]);
+
+Task 11 # For each place name in the “restaurant” category, give the average rating and the number of 
+comments. 
+Query:
+db.paris.aggregate([
+  { $match: { category: "restaurant" } },
+  { $project: { _id: 0, name: 1, "reviews.rating": 1, "reviews.comments": 1 } },
+  { $unwind: "$reviews" },
+  { $group: { _id: "$name", avgRating: { $avg: "$reviews.rating" }, count: { $sum: { $cond: [ { $eq: [ "$reviews.comments", null ] }, 0, 1 ] } } } }
+])
+
+Lookup Command:
+
+Query:
+db.paris.aggregate([
+  {
+    $lookup: {
+      from: "collection",
+      localField: "category",
+      foreignField: "category",
+      as: "similar"
+    }
+  },
+  {
+    $match: {
+      _id: 86495
+    }
+  }
+])
+
+
+
